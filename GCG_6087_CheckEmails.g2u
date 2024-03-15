@@ -1,0 +1,552 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.F_Kill..Create(BaseForm)
+Gui.F_Kill..Caption("Gen. Opportunities")
+Gui.F_Kill..Size(2445,1425)
+Gui.F_Kill..MinX(0)
+Gui.F_Kill..MinY(0)
+Gui.F_Kill..Position(0,0)
+Gui.F_Kill..BackColor(-2147483633)
+Gui.F_Kill..ControlBox(False)
+Gui.F_Kill..MousePointer(0)
+Gui.F_Kill..AlwaysOnTop(False)
+Gui.F_Kill..FontName("Tahoma")
+Gui.F_Kill..FontSize(8.25)
+Gui.F_Kill..MaxButton(True)
+Gui.F_Kill..MinButton(True)
+Gui.F_Kill..Moveable(True)
+Gui.F_Kill..Sizeable(True)
+Gui.F_Kill..ShowInTaskBar(True)
+Gui.F_Kill..TitleBar(True)
+Gui.F_Kill.lblRefresh.Create(Label,"Refresh:",True,765,255,0,105,120,True,0,"Arial",8,-2147483633,0,0)
+Gui.F_Kill.lblRefresh.BorderStyle(0)
+Gui.F_Kill.txtRefresh.Create(TextBox,"5",True,630,300,0,945,60,True,1,"Arial",8,-2147483643,1)
+Gui.F_Kill.txtRefresh.NumericOnly(2)
+Gui.F_Kill.cmdRefresh.Create(Button)
+Gui.F_Kill.cmdRefresh.Size(390,375)
+Gui.F_Kill.cmdRefresh.Position(240,465)
+Gui.F_Kill.cmdRefresh.Caption("Refresh")
+Gui.F_Kill.cmdRefresh.Event(Click,cmdRefresh_Click)
+Gui.F_Kill.cmdRefresh.Enabled(True)
+Gui.F_Kill.cmdRefresh.Visible(True)
+Gui.F_Kill.cmdRefresh.Zorder(0)
+Gui.F_Kill.cmdRefresh.FontName("Tahoma")
+Gui.F_Kill.cmdRefresh.FontSize(8.25)
+Gui.F_Kill.cmdEnd.Create(Button)
+Gui.F_Kill.cmdEnd.Size(855,375)
+Gui.F_Kill.cmdEnd.Position(1125,450)
+Gui.F_Kill.cmdEnd.Caption("Exit")
+Gui.F_Kill.cmdEnd.Event(Click,cmdEnd_Click)
+Gui.F_Kill.cmdEnd.Enabled(True)
+Gui.F_Kill.cmdEnd.Visible(True)
+Gui.F_Kill.cmdEnd.Zorder(0)
+Gui.F_Kill.cmdEnd.FontName("Tahoma")
+Gui.F_Kill.cmdEnd.FontSize(8.25)
+Gui.F_Kill.lblmins.Create(Label,"min(s)",True,1935,255,0,1665,120,True,0,"Arial",8,-2147483633,0,0)
+Gui.F_Kill.lblmins.BorderStyle(0)
+Gui.F_Kill.timerRefresh.Create(Timer)
+Gui.F_Kill.timerRefresh.Size(495,495)
+Gui.F_Kill.timerRefresh.Position(690,480)
+Gui.F_Kill.timerRefresh.Interval(300000)
+Gui.F_Kill.timerRefresh.Event(Timer,timerRefresh_Timer)
+Gui.F_Kill.timerRefresh.Enabled(False)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.External.Include.Library("GCG_6087_ErrorHandling.lib")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Author: BixRB
+'Date: 8 Sept 2020
+'GCG_6087_CheckEmails.g2u
+'C3 Corporation Inc.
+'Checks emails on a specific email account using IMAP and generates Opportunities based on the sender of emails
+F.Intrinsic.Control.Try
+
+Gui.F_Kill.timerRefresh.Enabled(True)
+Gui.F_Kill..Show
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.cmdEnd_Click.Start
+F.Intrinsic.Control.Try
+
+F.ODBC.Connection!conEnd.OpenCompanyConnection
+F.ODBC.Connection!conEnd.Execute("delete from GCG_6087_PROCESS;")
+F.ODBC.Connection!conEnd.Close
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdEnd_Click.End
+
+Program.Sub.cmdRefresh_Click.Start
+V.Local.iInterval.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.Math.Mult(V.Screen.F_Kill!txtRefresh.Text.Long,60000,V.Local.iInterval)
+Gui.F_Kill.timerRefresh.Interval(V.Local.iInterval)
+
+F.Intrinsic.Control.CallSub(timerRefresh_Timer)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdRefresh_Click.End
+
+Program.Sub.timerRefresh_Timer.Start
+V.Local.bOLU.Declare
+F.Intrinsic.Control.Try
+
+Gui.F_Kill.timerRefresh.Enabled(False)
+F.Global.General.IsOLURunning(V.Local.bOLU)
+F.Intrinsic.Control.If(V.Local.bOLU.Not)
+	'OLU no longer running, kill program
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.BlockEvents
+
+F.Intrinsic.Control.CallSub(GetSettings)
+F.Intrinsic.Control.If(V.DataTable.dtSettings(0).EMAIL!FieldValTrim,=,"")
+	'settings not set, exit sub
+	F.Data.DataTable.Close("dtSettings")
+	F.Data.DataTable.Close("dtInternalAssignment")
+	F.Intrinsic.Control.UnBlockEvents
+	Gui.F_Kill.timerRefresh.Enabled(True)
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+'connect to IMAP server
+F.Intrinsic.Control.CallSub(ConnectToIMAP)
+F.Intrinsic.Control.If(V.Args.IMAPReturn.Not)
+	'could not connect to IMAP server, exit sub
+	F.Data.DataTable.Close("dtSettings")
+	F.Data.DataTable.Close("dtInternalAssignment")
+	F.Intrinsic.Control.UnBlockEvents
+	F.Communication.IMAP.Disconnect
+	Gui.F_Kill.timerRefresh.Enabled(True)
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSub(OpenMailbox)
+
+F.Intrinsic.Control.CallSub(LoopThroughEmailsAndGenerateOpps,"MsgCnt",V.Args.MsgCnt)
+
+'Disconnect so we can reconnect the next time we run this sub
+F.Communication.IMAP.Disconnect
+
+F.Data.DataTable.Close("dtSettings")
+F.Data.DataTable.Close("dtInternalAssignment")
+F.Intrinsic.Control.UnBlockEvents
+Gui.F_Kill.timerRefresh.Enabled(True)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.timerRefresh_Timer.End
+
+Program.Sub.ConnectToIMAP.Start
+V.Local.PasswordEncoded.Declare(ByteArray)
+V.Local.sPasswordEncoded.Declare
+V.Local.sPasswordDecoded.Declare
+V.Local.sMsg.Declare
+V.Local.sFile.Declare
+V.Local.sFileString.Declare
+V.Local.bExists.Declare
+F.Intrinsic.Control.Try
+
+F.Communication.IMAP.SetProperty("AcceptSSLServerAuthentication",True)
+F.Communication.IMAP.SetProperty("MailServer",V.DataTable.dtSettings(0).MAIL_SERVER!FieldValTrim)
+F.Communication.IMAP.SetProperty("MailPort",V.DataTable.dtSettings(0).MAIL_PORT!FieldVal)
+F.Communication.IMAP.SetProperty("SSLEnabled",True)
+F.Communication.IMAP.SetProperty("User",V.DataTable.dtSettings(0).EMAIL!FieldValTrim)
+'parse encoded password
+F.Intrinsic.Control.If(V.DataTable.dtSettings(0).EMAIL!FieldVal,!=,"")
+	F.Intrinsic.String.ConvertBA2Hex(V.DataTable.dtSettings(0).EMAIL_PASSWORD!FieldVal,V.Local.sPasswordEncoded)
+	F.Intrinsic.String.TrimCharR(V.Local.sPasswordEncoded,"0",V.Local.sPasswordEncoded)
+	F.Intrinsic.String.ConvertHex2BA(V.Local.sPasswordEncoded,V.Local.PasswordEncoded)
+	F.Global.Encryption.Decrypt(V.Local.PasswordEncoded,V.Local.sPasswordDecoded)
+F.Intrinsic.Control.Else
+	V.Local.sPasswordDecoded.Set("")
+F.Intrinsic.Control.EndIf
+F.Global.Encryption.Decrypt(V.Local.PasswordEncoded,V.Local.sPasswordDecoded)
+F.Communication.IMAP.SetProperty("Password",V.Local.sPasswordDecoded)
+F.Communication.IMAP.Connect
+F.Intrinsic.Variable.AddRV("IMAPReturn",True)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.If(V.Ambient.ErrorNumber,=,999000)
+		F.Intrinsic.String.Build("Could not establish connection with Mail Server: {2}{0}Port: {3}{0}User: {4}{0}Here is the returned error:{0}{0}{1}Opportunity check has been cancelled.",V.Ambient.NewLine,V.Ambient.ErrorDescription,V.DataTable.dtSettings(0).MAIL_SERVER!FieldVal,V.DataTable.dtSettings(0).MAIL_PORT!FieldValString,V.DataTable.dtSettings(0).EMAIL!FieldVal,V.Local.sMsg)
+		F.Intrinsic.String.Build("{0}\CUSTOM\{1}\{2}\",V.Caller.GlobalDir,"6087",V.Caller.CompanyCode,V.Local.sFile)
+		F.Intrinsic.File.CreateDir(V.Local.sFile)
+		F.Intrinsic.String.Build("{0}ERR_LOG_{1}.log",V.Local.sFile,V.Ambient.Date.FormatYYYYMMDD,V.Local.sFile)
+		F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+		F.Intrinsic.Control.If(V.Local.bExists)
+			F.Intrinsic.File.File2String(V.Local.sFile,V.Local.sFileString)
+			F.Intrinsic.String.Build("{0}{1}{1}",V.Local.sFileString,V.Ambient.NewLine,V.Local.sFileString)
+		F.Intrinsic.Control.Else
+			V.Local.sFileString.Set("")
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Build("{0}Logged: {1}{2}{3}",V.Local.sFileString,V.Ambient.Time.FormatHH:NN:SS,V.Ambient.NewLine,V.Local.sMsg,V.Local.sFileString)
+		F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sFileString)
+		F.Intrinsic.Variable.AddRV("IMAPReturn",False)
+		F.Intrinsic.Control.ClearErrors
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.ConnectToIMAP.End
+
+Program.Sub.GetSettings.Start
+F.Intrinsic.Control.Try
+
+F.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.CreateFromSQL("dtSettings","con","select ID, MAIL_SERVER, MAIL_PORT, EMAIL, EMAIL_PASSWORD, ATTACH_PATH, SENDER_EMAIL from GCG_6087_SETTINGS;",True)
+F.Data.DataTable.CreateFromSQL("dtInternalAssignment","con","select CUSTOMER, CONTACT, TYPE, INTERNAL_ASSIGNMENT from GCG_6087_ASSIGN;",True)
+F.ODBC.Connection!con.Close
+
+F.Data.DataView.Create("dtInternalAssignment","dv")
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Data.DataTable.Close("dtSettings")
+	F.ODBC.Connection!con.OpenCompanyConnection
+	F.ODBC.Connection!con.Execute("insert into GCG_6087_SETTINGS (MAIL_SERVER, MAIL_PORT, EMAIL, ATTACH_PATH, SENDER_EMAIL) values ('outlook.office365.com', 993, '', '', '');")
+	F.Data.DataTable.CreateFromSQL("dtSettings","con","select ID, MAIL_SERVER, MAIL_PORT, EMAIL, EMAIL_PASSWORD, ATTACH_PATH, SENDER_EMAIL from GCG_6087_SETTINGS;",True)
+	F.ODBC.Connection!con.Close
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.GetSettings.End
+
+Program.Sub.OpenMailbox.Start
+V.Local.iMsgCnt.Declare
+F.Intrinsic.Control.Try
+
+F.Communication.IMAP.SetProperty("Mailbox","INBOX")
+F.Communication.IMAP.SelectMailbox
+F.Communication.IMAP.GetProperty("MessageCount",V.Local.iMsgCnt)
+F.Intrinsic.Variable.AddRV("MsgCnt",V.Local.iMsgCnt)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.OpenMailbox.End
+
+Program.Sub.LoopThroughEmailsAndGenerateOpps.Start
+'V.Args.MsgCnt
+V.Local.sMsgSubj.Declare
+V.Local.sMsgFrom.Declare
+V.Local.sMsgFlag.Declare
+V.Local.sMsgTime.Declare
+V.Local.sMsgText.Declare
+V.Local.sMsgPart.Declare
+V.Local.sSQL.Declare
+V.Local.sFileName.Declare
+V.Local.sFilePath.Declare
+V.Local.sFileDescr.Declare
+V.Local.sPartID.Declare
+V.Local.sType.Declare
+V.Local.sFilter.Declare
+V.Local.sInternalAssignment.Declare
+V.Local.sSNLeft.Declare
+V.Local.sTXTRight.Declare
+V.Local.sCaseInfo.Declare
+V.Local.iMsg.Declare
+V.Local.iMsgPart.Declare
+V.Local.iSubj.Declare
+V.Local.iOppID.Declare
+V.Local.iLinkID.Declare
+V.Local.bSeen.Declare
+V.Local.bAttach.Declare
+V.Local.dOneYear.Declare
+V.Local.dOneWeek.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.Date.DateAdd("yyyy",1,V.Ambient.Date,V.Local.dOneYear)
+F.Intrinsic.Date.DateAdd("ww",1,V.Ambient.Date,V.Local.dOneWeek)
+F.Intrinsic.Control.For(V.Local.iMsg,V.Args.MsgCnt,1,-1)
+	V.Local.sSQL.Set("")
+	V.Local.iOppID.Set(-1)
+	F.Communication.IMAP.SetProperty("MessageSet",V.Local.iMsg)
+	F.Communication.IMAP.FetchMessageInfo
+	
+	F.Communication.IMAP.GetProperty("MessageFlags",V.Local.sMsgFlag)
+	F.Intrinsic.String.IsInString(V.Local.sMsgFlag,"\Seen",True,V.Local.bSeen)
+	F.Intrinsic.Control.If(V.Local.bSeen)
+		'message has already been read, exit for loop
+		F.Intrinsic.Control.ExitFor(V.Local.iMsg)
+	F.Intrinsic.Control.EndIf
+	
+	F.Communication.IMAP.GetProperty("MessageSubject",V.Local.sMsgSubj)
+	F.Communication.IMAP.GetProperty("MessageFrom",V.Local.sMsgFrom)
+	F.Communication.IMAP.GetProperty("MessageDate",V.Local.sMsgTime)
+	F.Communication.IMAP.LocalizeDate(V.Local.sMsgTime,V.Local.sMsgTime)
+	
+	'create opportunity
+	F.Intrinsic.String.Split(V.Local.sMsgFrom,"<",V.Local.sMsgFrom)
+	F.Intrinsic.String.Split(V.Local.sMsgFrom(1),">",V.Local.sMsgFrom)
+	V.Local.sMsgFrom.RedimPreserve(0,0)
+	F.Intrinsic.Control.If(V.Local.sMsgFrom.UCase,=,"VZWMAIL@ECRMEMAIL.VERIZONWIRELESS.COM")
+		'This is an email from C3 Corporation's Voicemail Provider, use the Phone # in the Subject to find a contact
+		F.Intrinsic.String.Split(V.Local.sMsgSubj," ",V.Local.sMsgSubj)
+		F.Intrinsic.Control.For(V.Local.iSubj,0,V.Local.sMsgSubj.UBound,1)
+			F.Intrinsic.Control.If(V.Local.sMsgSubj(V.Local.iSubj).IsNumeric,=,True,and,V.Local.sMsgSubj(V.Local.iSubj).Length,=,10)
+				'Phone # found
+				V.Local.sMsgSubj(0).Set(V.Local.sMsgSubj(V.Local.iSubj))
+				F.Intrinsic.Control.ExitFor(V.Local.iSubj)
+			F.Intrinsic.Control.EndIf
+			V.Local.sMsgSubj.RedimPreserve(0,0)
+			F.Intrinsic.String.LimitSplit(V.Local.sMsgSubj,3,V.Local.sMsgSubj)
+			F.Intrinsic.String.Build("{0}-{1}-{2}{3}",V.Local.sMsgSubj(0),V.Local.sMsgSubj(1),V.Local.sMsgSubj(2),V.Local.sMsgSubj(3),V.Local.sMsgSubj(0))
+			V.Local.sMsgSubj.RedimPreserve(0,0)
+			F.Intrinsic.String.Build("A.PHONE1 = '{0}' or A.PHONE2 = '{0}' or A.PHONE3 = '{0}'",V.Local.sMsgSubj,V.Local.sSQL)
+		F.Intrinsic.Control.Next(V.Local.iSubj)
+		V.Local.sType.Set("voicemail")
+	F.Intrinsic.Control.ElseIf(V.Local.sMsgFrom.UCase,=,"SUPPORT@C3INGENUITY.COM")
+		'This is an email from C3's Case Creation Service. Need to read in attachment and get the info from a text file
+		F.Communication.IMAP.FetchMessageText
+		F.Communication.IMAP.GetProperty("MessageParts",V.Local.sMsgText)
+		F.Intrinsic.String.Split(V.Local.sMsgText,"!*!",V.Local.sMsgText)
+		'loop through the message parts and check for attachments
+		F.Intrinsic.Control.For(V.Local.iMsgPart,0,V.Local.sMsgText.UBound,1)
+			F.Intrinsic.String.IsInString(V.Local.sMsgText(V.Local.iMsgPart),"attachment",True,V.Local.bAttach)
+			F.Intrinsic.Control.If(V.Local.bAttach)
+				'Current part is an attachment
+				F.Intrinsic.String.Split(V.Local.sMsgText(V.Local.iMsgPart),"*!*",V.Local.sMsgPart)
+				'Filename is stored in index 4 of the Message Part
+				F.Intrinsic.String.Split(V.Local.sMsgPart(4),"*=*",V.Local.sFileName)
+				V.Local.sFileName(0).Set(V.Local.sFileName(1))
+				V.Local.sFileName.RedimPreserve(0,0)
+				'Check file name for SN at the front and .txt at the back
+				V.Local.sSNLeft.Set(V.Local.sFileName.Left2)
+				V.Local.sTXTRight.Set(V.Local.sFileName.Right4)
+				F.Intrinsic.Control.If(V.Local.sSNLeft.UCase,=,"SN",and,V.Local.sTXTRight.UCase,=,".TXT")
+					'Meta Data attachment found
+					F.Intrinsic.String.Build("{0}\{1}",V.Caller.LocalGSSTempDir,V.Local.sFileName,V.Local.sFilePath)
+					'Part ID is stored in index 5 of the Message part
+					F.Intrinsic.String.Split(V.Local.sMsgPart(5),"*=*",V.Local.sPartID)
+					V.Local.sPartID(0).Set(V.Local.sPartID(1))
+					V.Local.sPartID.RedimPreserve(0,0)
+					F.Communication.IMAP.SetProperty("LocalFile",V.Local.sFilePath)
+					F.Communication.IMAP.SetProperty("AutoDecodeParts",True)
+					F.Communication.IMAP.SetProperty("Overwrite",True)
+					F.Communication.IMAP.FetchMessagePart(V.Local.sPartID)
+					V.Local.sMsgPart.Redim(0,0)
+					'Okay NOW, we can open the V.Local.sFilePath and read in info about the email and phone #
+					F.Intrinsic.File.File2String(V.Local.sFilePath,V.Local.sCaseInfo)
+					F.Intrinsic.String.Split(V.Local.sCaseInfo,"|",V.Local.sCaseInfo)
+					F.Intrinsic.String.Split(V.Local.sCaseInfo(2),":",V.Local.sMsgSubj)
+					V.Local.sMsgSubj(0).Set(V.Local.sMsgSubj(1).Trim)
+					V.Local.sMsgSubj.RedimPreserve(0,0)
+					F.Intrinsic.String.Build("A.EMAIL1 = '{0}' or A.EMAIL2 = '{0}'",V.Local.sMsgSubj,V.Local.sSQL)
+					V.Local.sCaseInfo.Redim(0,0)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.iMsgPart)
+		F.Intrinsic.Control.If(V.Local.sSQL,=,"")
+			V.Local.sType.Set("skip")
+		F.Intrinsic.Control.Else
+			V.Local.sType.Set("case request")
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("A.EMAIL1 = '{0}' or A.EMAIL2 = '{0}'",V.Local.sMsgFrom,V.Local.sSQL)
+		V.Local.sType.Set("email")
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Build("select A.CUST_6 as CUST, rtrim(B.NAME_CUSTOMER) as CUST_NAME, A.ID, B.SALESPERSON, A.EMAIL1 as EMAIL from V_CONTACT A left join V_CUSTOMER_MASTER B on A.CUST_6 = B.CUSTOMER where A.TYPE = 'C' and ({0}) order by A.ID asc;",V.Local.sSQL,V.Local.sSQL)
+	F.ODBC.Connection!con.OpenCompanyConnection
+	F.Data.DataTable.CreateFromSQL("dtContactInfo","con",V.Local.sSQL,False)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.If(V.DataTable.dtContactInfo.RowCount,>,0,and,V.Local.sType,!=,"skip")
+		'Get Internal Assignment
+		F.Intrinsic.String.Build("[TYPE] = 2 and [CONTACT] = '{0}' and [CUSTOMER] = '{1}'",V.DataTable.dtContactInfo(0).ID!FieldValTrim,V.DataTable.dtContactInfo(0).CUST!FieldValTrim,V.Local.sFilter)
+		F.Data.DataView.SetFilter("dtInternalAssignment","dv",V.Local.sFilter)
+		F.Intrinsic.Control.If(V.DataView.dtInternalAssignment!dv.RowCount,=,0)
+			'Contact does not have internal assignment, check customer
+			F.Intrinsic.String.Build("[TYPE] = 1 and [CUSTOMER] = '{0}'",V.DataTable.dtContactInfo(0).CUST!FieldValTrim,V.Local.sFilter)
+			F.Data.DataView.SetFilter("dtInternalAssignment","dv",V.Local.sFilter)
+			F.Intrinsic.Control.If(V.DataView.dtInternalAssignment!dv.RowCount,=,0)
+				'No Internal Assignment could be found
+				V.Local.sInternalAssignment.Set("")
+			F.Intrinsic.Control.Else
+				V.Local.sInternalAssignment.Set(V.DataView.dtInternalAssignment!dv(0).INTERNAL_ASSIGNMENT!FieldVal)
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Else
+			V.Local.sInternalAssignment.Set(V.DataView.dtInternalAssignment!dv(0).INTERNAL_ASSIGNMENT!FieldVal)
+		F.Intrinsic.Control.EndIf
+		F.Data.DataView.SetFilter("dtInternalAssignment","dv","")
+		
+		F.Global.CRM.SaveOpportunity(-1,"",V.DataTable.dtContactInfo(0).CUST!FieldValTrim,"15",V.DataTable.dtContactInfo(0).ID!FieldValTrim,"-1","AUTO-GENERATED BY EMAIL","0",,V.Local.dOneYear.String,V.Local.dOneWeek.String,"-1","0.0","-1","0","-1",V.Local.sInternalAssignment,V.DataTable.dtContactInfo(0).SALESPERSON!FieldVal,"","","","","",V.Local.iOppID)
+		'UGH for SOME REASON the oppID always returns -1 SO I GUESS I HAVE TO FIND THE OPPORTUNITY I JUST CREATED
+		F.Intrinsic.Control.If(V.Local.iOppID,=,-1)
+			F.Intrinsic.Control.CallSub(GetOppID,"CustID",V.DataTable.dtContactInfo(0).CUST!FieldVal,"ContactID",V.DataTable.dtContactInfo(0).ID!FieldValLong)
+			'V.Args.NewOppID
+			V.Local.iOppID.Set(V.Args.NewOppID)
+		F.Intrinsic.Control.EndIf
+		'update user fields
+		'also updates opportunity close date
+		F.Intrinsic.Control.CallSub(UpdateOppUserFields,"CustID",V.DataTable.dtContactInfo(0).CUST!FieldVal,"OppID",V.Local.iOppID.String,"DateTime",V.Local.sMsgTime)
+		F.Intrinsic.Control.If(V.DataTable.dtContactInfo(0).EMAIL!FieldValTrim,!=,"")
+			F.Intrinsic.Control.CallSub(GenerateExternalEmail,"Email",V.DataTable.dtContactInfo(0).EMAIL!FieldValTrim,"Type",V.Local.sType,"SenderEmail",V.DataTable.dtSettings(0).SENDER_EMAIL!FieldVal)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.If(V.Local.sInternalAssignment.Trim,!=,"")
+			F.Intrinsic.Control.CallSub(GenerateInternalEmail,"User",V.Local.sInternalAssignment,"Cust",V.DataTable.dtContactInfo(0).CUST_NAME!FieldVal,"OppID",V.Local.iOppID.String,"SenderEmail",V.DataTable.dtSettings(0).SENDER_EMAIL!FieldVal)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.Local.sType,!=,"case request")
+		'Only want to run this code if the email did not come from C3's case request program
+		'FetchMessageText sets the flag on the current message to \Seen so it's not creating two opportunities
+		F.Communication.IMAP.FetchMessageText
+		F.Communication.IMAP.GetProperty("MessageParts",V.Local.sMsgText)
+		F.Intrinsic.String.Split(V.Local.sMsgText,"!*!",V.Local.sMsgText)
+		'loop through the message parts and check for attachments
+		F.Intrinsic.Control.For(V.Local.iMsgPart,0,V.Local.sMsgText.UBound,1)
+			F.Intrinsic.String.IsInString(V.Local.sMsgText(V.Local.iMsgPart),"attachment",True,V.Local.bAttach)
+			F.Intrinsic.Control.If(V.Local.bAttach)
+				'Current part is an attachment
+				F.Intrinsic.String.Split(V.Local.sMsgText(V.Local.iMsgPart),"*!*",V.Local.sMsgPart)
+				'Filename is stored in index 4 of the Message Part
+				F.Intrinsic.String.Split(V.Local.sMsgPart(4),"*=*",V.Local.sFileName)
+				V.Local.sFileName(0).Set(V.Local.sFileName(1))
+				V.Local.sFileName.RedimPreserve(0,0)
+				F.Intrinsic.String.Build("{0}{1}",V.DataTable.dtSettings(0).ATTACH_PATH!FieldValTrim,V.Local.sFileName,V.Local.sFilePath)
+				F.Intrinsic.String.Build("DOCUMENT ADDED VIA EMAIL {0}",V.Local.iMsgPart.String,V.Local.sFileDescr)
+				'Part ID is stored in index 5 of the Message part
+				F.Intrinsic.String.Split(V.Local.sMsgPart(5),"*=*",V.Local.sPartID)
+				V.Local.sPartID(0).Set(V.Local.sPartID(1))
+				V.Local.sPartID.RedimPreserve(0,0)
+				F.Communication.IMAP.SetProperty("LocalFile",V.Local.sFilePath)
+				F.Communication.IMAP.SetProperty("AutoDecodeParts",True)
+				F.Communication.IMAP.SetProperty("Overwrite",True)
+				F.Communication.IMAP.FetchMessagePart(V.Local.sPartID)
+				V.Local.sMsgPart.Redim(0,0)
+				
+				'attach the file to the opportunity if it exists
+				F.Intrinsic.Control.If(V.Local.iOppID,!=,-1)
+					F.Global.DocumentControl.CreateReference(V.Local.iOppID.String,93,V.Local.iLinkID)
+					F.Global.DocumentControl.AddDocument(V.Local.iLinkID,V.Local.sFilePath,V.Local.sFileDescr,-1,)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.iMsgPart)
+	F.Intrinsic.Control.EndIf
+	
+	F.Data.DataTable.Close("dtContactInfo")
+	V.Local.sMsgText.Redim(0,0)
+F.Intrinsic.Control.Next(V.Local.iMsg)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.LoopThroughEmailsAndGenerateOpps.End
+
+Program.Sub.GenerateExternalEmail.Start
+'V.Args.Email, V.Args.Type, V.Args.SenderEmail
+V.Local.sSubject.Declare
+V.Local.sBody.Declare
+V.Local.sSender.Declare
+V.Local.sRecipient.Declare
+V.Local.iUserID.Declare
+F.Intrinsic.Control.Try
+
+F.Global.Security.GetUserId(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+
+F.Intrinsic.String.Build("We got your {0}!",V.Args.Type,V.Local.sSubject)
+F.Intrinsic.String.Build("This is an automated notification to let you know that we got your {0}!{1}{1}Thank you!{1}{2}",V.Args.Type,V.Ambient.NewLine,V.Company.Name,V.Local.sBody)
+F.Intrinsic.String.Build("{0}*!*",V.Args.SenderEmail,V.Local.sSender)
+F.Intrinsic.String.Build("*!*{0}",V.Args.Email,V.Local.sRecipient)
+F.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUserID,"GCG_6087",V.Local.sSubject,V.Local.sSender,V.Local.sRecipient,V.Local.sBody,-1,"",False,"",1/1/1900,"","","","","","",False,"")
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.GenerateExternalEmail.End
+
+Program.Sub.GenerateInternalEmail.Start
+'V.Args.User, V.Args.Cust, V.Args.OppID, V.Args.SenderEmail
+V.Local.sSubject.Declare
+V.Local.sBody.Declare
+V.Local.sSender.Declare
+V.Local.sRecipient.Declare
+V.Local.iUserID.Declare
+F.Intrinsic.Control.Try
+
+F.Global.Security.GetUserId(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+
+F.Intrinsic.String.Build("Opportunity {0} has been generated for {1}",V.Args.OppID,V.Args.Cust,V.Local.sSubject)
+F.Intrinsic.String.Build("This is an automated notification to let you know that an Opportunity has been generated for Customer {0}.{1}{1}Opportunity: {2}",V.Args.Cust,V.Ambient.NewLine,V.Args.OppID,V.Local.sBody)
+F.Intrinsic.String.Build("{0}*!*",V.Args.SenderEmail,V.Local.sSender)
+F.Global.Security.GetUserEmail(V.Args.User,V.Caller.CompanyCode,V.Local.sRecipient)
+F.Intrinsic.Control.If(V.Local.sRecipient.Trim,!=,"")
+	F.Intrinsic.String.Build("*!*{0}",V.Local.sRecipient,V.Local.sRecipient)
+	F.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUserID,"GCG_6087",V.Local.sSubject,V.Local.sSender,V.Local.sRecipient,V.Local.sBody,-1,"",False,"",1/1/1900,"","","","","","",False,"")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.GenerateInternalEmail.End
+
+Program.Sub.UpdateOppUserFields.Start
+'V.Args.CustID, V.Args.OppID, V.Args.DateTime
+V.Local.sSQL.Declare
+V.Local.dDate.Declare
+F.Intrinsic.Control.Try
+
+V.Local.dDate.Set(V.Args.DateTime)
+'User Field 10 = Date and Time of Opportunity creation
+F.Intrinsic.String.Build("insert into CRM_UF_VALUE (TYPE, COMPID, COMPTYPE, OID, UF1, UF2, UF3, UF4, UF5, UF6, UF7, UF8, UF9, UF10, UF11, UF12, UF13, UF14, UF15, UF16) values (92, '{0}', 15, {1}, '', '', '', '', '', '', '', '', '', '', '{2}', '', '', '', '', '');",V.Args.CustID,V.Args.OppID,V.Local.dDate.String,V.Local.sSQL)
+F.ODBC.Connection!con.OpenCompanyConnection
+F.ODBC.Connection!con.Execute(V.Local.sSQL)
+'opportunities are created as 'closed' from GAB ughhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh my pain is never ending. This will set the current Opportunity to be 'open'
+F.Intrinsic.String.Build("update CRM_OPP_MASTER set OCLOSEDATE = NULL, OCLOSEREASON = '' where COMPID = '{0}' and OID = {1} and COMPTYPE = 15;",V.Args.CustID,V.Args.OppID,V.Local.sSQL)
+F.ODBC.Connection!con.Execute(V.Local.sSQL)
+F.ODBC.Connection!con.Close
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.UpdateOppUserFields.End
+
+Program.Sub.GetOppID.Start
+'V.Args.CustID, V.Args.ContactID
+V.Local.sSQL.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.String.Build("select top 1 OID from CRM_OPP_MASTER where COMPID = '{0}' and COMPTYPE = 15 and CID = {1} order by OID desc;",V.Args.CustID,V.Args.ContactID.String,V.Local.sSQL)
+F.ODBC.Connection!con.OpenCompanyConnection
+F.ODBC.Connection!con.ExecuteAndReturn(V.Local.sSQL,V.Local.sSQL)
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.If(V.Ambient.ExecuteAndReturnEOF.Not)
+	F.Intrinsic.Variable.AddRV("NewOppID",V.Local.sSQL.Long)
+F.Intrinsic.Control.Else
+	F.Intrinsic.Variable.AddRV("NewOppID",-1)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"FolderName","6087")
+	F.Intrinsic.Control.CallSub(cmdEnd_Click)
+F.Intrinsic.Control.EndTry
+Program.Sub.GetOppID.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$bbaker$}$20201216153822872$}$pM7xsHplA2E9VCTenDTJ47gi1rF/t66WGrla7agMlbw4By44n1R8sa/zILq+b7xmDu6UgXEA5IA=
+Program.Sub.Comments.End
